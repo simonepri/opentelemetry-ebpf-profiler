@@ -4,7 +4,6 @@
 package tracer
 
 import (
-	"errors"
 	"io/fs"
 	"os"
 	"runtime"
@@ -20,7 +19,7 @@ import (
 func TestGetCurrentNS_FileNotFound(t *testing.T) {
 	_, _, err := getCurrentNS("/nonexistent/path/pid")
 	require.Error(t, err)
-	require.True(t, errors.Is(err, fs.ErrNotExist))
+	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 
 func TestGetCurrentNS_ProcSelfNsPid(t *testing.T) {
@@ -37,6 +36,48 @@ func TestGetCurrentNS_ProcSelfNsPid(t *testing.T) {
 	require.NotZero(t, ino, "pid namespace inode should be non-zero")
 }
 
+func TestPIDNamespaceTranslationMode(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		enabled bool
+		mode    PIDNamespaceTranslationMode
+		want    PIDNamespaceTranslationMode
+		wantErr bool
+	}{
+		{name: "disabled ignores mode", mode: PIDNamespaceTranslationMode(255), want: PIDNamespaceTranslationModeExact},
+		{name: "auto default", enabled: true, want: PIDNamespaceTranslationModeAuto},
+		{name: "exact", enabled: true, mode: PIDNamespaceTranslationModeExact, want: PIDNamespaceTranslationModeExact},
+		{name: "descendants", enabled: true, mode: PIDNamespaceTranslationModeDescendants, want: PIDNamespaceTranslationModeDescendants},
+		{name: "unknown", enabled: true, mode: PIDNamespaceTranslationMode(255), wantErr: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := pidNamespaceTranslationMode(&Config{
+				PIDNamespaceTranslation: tt.enabled, PIDNamespaceTranslationMode: tt.mode,
+			})
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestAutoPIDNamespaceTranslationFallback(t *testing.T) {
+	var calls []bool
+	enabled, err := parseBTFForPIDNamespaceMode(PIDNamespaceTranslationModeAuto, func(layout bool) error {
+		calls = append(calls, layout)
+		if layout {
+			return fs.ErrNotExist
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	require.False(t, enabled)
+	require.Equal(t, []bool{true, false}, calls)
+}
+
 func TestValidateSystemAnalysisResult(t *testing.T) {
 	address := libpf.SymbolValue(0x1234)
 
@@ -50,7 +91,7 @@ func TestValidateSystemAnalysisResult(t *testing.T) {
 	t.Run("helper failure", func(t *testing.T) {
 		err := validateSystemAnalysisResult(support.SystemAnalysis{Err: -14}, address)
 		require.Error(t, err)
-		require.True(t, errors.Is(err, errSystemAnalysisFailed))
+		require.ErrorIs(t, err, errSystemAnalysisFailed)
 		require.ErrorContains(t, err, "helper err=-14")
 	})
 

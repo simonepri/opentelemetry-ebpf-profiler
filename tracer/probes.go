@@ -9,9 +9,10 @@ import (
 
 	cebpf "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
-	pm "go.opentelemetry.io/ebpf-profiler/processmanager"
 
+	"go.opentelemetry.io/ebpf-profiler/kallsyms"
 	"go.opentelemetry.io/ebpf-profiler/libpf"
+	pm "go.opentelemetry.io/ebpf-profiler/processmanager"
 	"go.opentelemetry.io/ebpf-profiler/reporter/samples"
 	"go.opentelemetry.io/ebpf-profiler/support"
 )
@@ -23,6 +24,7 @@ type ProbeContext struct {
 	sysVars          SysConfigVars
 	links            []link.Link
 	registerAttacher func(pm.ProbeAttacher)
+	KernelSymbolizer *kallsyms.Symbolizer
 	reg              ProbeRegistrar
 }
 
@@ -109,7 +111,7 @@ type sysVar struct {
 // both the include list in CollectionSpecWith and the apply pass in applySystemVars.
 func (c *ProbeContext) sysVarSetters() []sysVar {
 	sv := c.sysVars
-	return []sysVar{
+	vars := []sysVar{
 		{"inverse_pac_mask", sv.inverse_pac_mask},
 		{"tpbase_offset", sv.tpbase_offset},
 		{"task_stack_offset", sv.task_stack_offset},
@@ -120,6 +122,7 @@ func (c *ProbeContext) sysVarSetters() []sysVar {
 		{"task_group_leader_offset", sv.task_group_leader_offset},
 		{"task_start_time_offset", sv.task_start_time_offset},
 	}
+	return append(vars, sv.pidNamespaceVars()...)
 }
 
 // applySystemVars writes the system configuration values determined at tracer startup into
@@ -437,6 +440,7 @@ func (t *Tracer) Enable(ctx context.Context, p Probe) error {
 		registerAttacher: func(a pm.ProbeAttacher) {
 			t.processManager.RegisterProbeAttacher(a)
 		},
+		KernelSymbolizer: t.kernelSymbolizer,
 	}
 
 	if err := p.Load(ctx, t.origins, probeCtx); err != nil {
