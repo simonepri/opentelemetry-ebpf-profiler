@@ -13,6 +13,7 @@ import (
 #include "./ebpf/types.h"
 #include "./ebpf/frametypes.h"
 #include "./ebpf/v8_tracer.h"
+#include "./ebpf/luajit.h"
 */
 import "C"
 
@@ -105,6 +106,7 @@ type Event C.Event
 type OffsetRange C.OffsetRange
 type PIDPage C.PIDPage
 type PIDPageMappingInfo C.PIDPageMappingInfo
+type PIDNamespaceLayout C.PIDNamespaceLayout
 type StackDelta C.StackDelta
 type StackDeltaPageInfo C.StackDeltaPageInfo
 type StackDeltaPageKey C.StackDeltaPageKey
@@ -152,11 +154,10 @@ const (
 	UnwindRegX86R8   uint8 = C.UNWIND_REG_X86_R8
 
 	// UnwindFlag values from the C header file
-	UnwindFlagCommand    uint8 = C.UNWIND_FLAG_COMMAND
-	UnwindFlagFrame      uint8 = C.UNWIND_FLAG_FRAME
-	UnwindFlagLeafOnly   uint8 = C.UNWIND_FLAG_LEAF_ONLY
-	UnwindFlagDerefCfa   uint8 = C.UNWIND_FLAG_DEREF_CFA
-	UnwindFlagRegisterRA uint8 = C.UNWIND_FLAG_REGISTER_RA
+	UnwindFlagCommand  uint8 = C.UNWIND_FLAG_COMMAND
+	UnwindFlagFrame    uint8 = C.UNWIND_FLAG_FRAME
+	UnwindFlagLeafOnly uint8 = C.UNWIND_FLAG_LEAF_ONLY
+	UnwindFlagDerefCfa uint8 = C.UNWIND_FLAG_DEREF_CFA
 
 	// UnwindCommands from the C header file
 	UnwindCommandInvalid      int32 = C.UNWIND_COMMAND_INVALID
@@ -205,6 +206,9 @@ const (
 	RubyFrameTypeIseq     = C.RUBY_FRAME_TYPE_ISEQ
 	RubyFrameTypeGc       = C.RUBY_FRAME_TYPE_GC
 	RubyFrameTypeJit      = C.RUBY_FRAME_TYPE_JIT
+
+	LJCframeSpaceX86 = C.LUAJIT_CFRAME_SPACE_X86_64
+	LJCframeSpaceArm = C.LUAJIT_CFRAME_SPACE_AARCH64
 )
 
 var MetricsTranslation = []metrics.MetricID{

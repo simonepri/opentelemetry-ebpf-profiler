@@ -118,6 +118,15 @@ type PIDPageMappingInfo struct {
 	File_id                 uint64
 	Bias_and_unwind_program uint64
 }
+type PIDNamespaceLayout struct {
+	Task_thread_pid_offset    uint32
+	Pid_level_offset          uint32
+	Pid_numbers_offset        uint32
+	Upid_size                 uint32
+	Upid_nr_offset            uint32
+	Upid_ns_offset            uint32
+	Pid_namespace_inum_offset uint32
+}
 type StackDelta struct {
 	AddrLow    uint16
 	UnwindInfo uint16
@@ -351,11 +360,10 @@ const (
 	UnwindRegX86RDI  uint8 = 0x7
 	UnwindRegX86R8   uint8 = 0x8
 
-	UnwindFlagCommand    uint8 = 0x1
-	UnwindFlagFrame      uint8 = 0x2
-	UnwindFlagLeafOnly   uint8 = 0x4
-	UnwindFlagDerefCfa   uint8 = 0x8
-	UnwindFlagRegisterRA uint8 = 0x10
+	UnwindFlagCommand  uint8 = 0x1
+	UnwindFlagFrame    uint8 = 0x2
+	UnwindFlagLeafOnly uint8 = 0x4
+	UnwindFlagDerefCfa uint8 = 0x8
 
 	UnwindCommandInvalid      int32 = 0x0
 	UnwindCommandStop         int32 = 0x1
@@ -400,6 +408,9 @@ const (
 	RubyFrameTypeIseq     = 0x3
 	RubyFrameTypeGc       = 0x4
 	RubyFrameTypeJit      = 0x5
+
+	LJCframeSpaceX86 = 0x50
+	LJCframeSpaceArm = 0xd0
 )
 
 var MetricsTranslation = []metrics.MetricID{
