@@ -104,7 +104,7 @@ func TestWalkRangeListCycle(t *testing.T) {
 	)
 	buf := make([]byte, 0x2000)
 	fillRanges := func(base libpf.Address, next libpf.Address, valueStart uint64) {
-		for index := 0; index < 10; index++ {
+		for index := range 10 {
 			start := valueStart + uint64(index*0x100)
 			putUint64(buf, int(base)+index*24, start)
 			putUint64(buf, int(base)+index*24+8, start+0x10)
@@ -128,7 +128,7 @@ func TestWalkRangeListCycle(t *testing.T) {
 func TestMarkSeen(t *testing.T) {
 	w := &rangeWalker{seenAddress: make(map[libpf.Address]libpf.Void)}
 
-	for addr := libpf.Address(0); addr < maxRangeSectionWalkNodes; addr++ {
+	for addr := range libpf.Address(maxRangeSectionWalkNodes) {
 		fresh, err := w.markSeen(addr)
 		require.NoError(t, err)
 		require.True(t, fresh)
@@ -249,4 +249,31 @@ func TestSymbolizeDynamicMethod(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestStringsHeapAddrSurvivesPEReparse pins the map key of stringsHeapAddrByPE.
+//
+// peInfoCache re-parses a PE when its entry expires or is evicted and returns a
+// new *peInfo for the same bytes, while moduleToPEInfo and addrToMethod keep
+// returning the object from the first parse for the life of the instance. Keyed
+// by pointer, the sync that picked up the new object rebuilt the map on it and
+// pruned the old key, so every method still cached against the first object
+// resolved its heap address to 0 and symbolized as the separators
+// resolveMethodName formats around empty name parts.
+func TestStringsHeapAddrSurvivesPEReparse(t *testing.T) {
+	const addr = 0x7f0000001000
+
+	hash := peHashFromHeader([]byte("a dotnet PE header"))
+	firstParse := &peInfo{hash: hash, simpleName: libpf.Intern("Contoso.dll")}
+	reparsed := &peInfo{hash: hash, simpleName: libpf.Intern("Contoso.dll")}
+
+	i := &dotnetInstance{
+		stringsHeapAddrByPE: map[peHash]stringsHeapEntry{hash: {addr: addr, gen: 1}},
+	}
+
+	assert.Equal(t, uint64(addr), i.stringsHeapAddrByPE[reparsed.hash].addr)
+	assert.Equal(t, uint64(addr), i.stringsHeapAddrByPE[firstParse.hash].addr)
+
+	other := &peInfo{hash: peHashFromHeader([]byte("a different PE"))}
+	assert.Zero(t, i.stringsHeapAddrByPE[other.hash].addr)
 }

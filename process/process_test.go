@@ -238,8 +238,57 @@ func TestExtractContainerID(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.expectedContainerID, func(t *testing.T) {
 			reader := strings.NewReader(tc.line)
-			gotContainerID := parseContainerID(reader)
+			gotContainerID, err := parseContainerID(reader)
+			require.NoError(t, err)
 			assert.Equal(t, tc.expectedContainerID, gotContainerID.String())
+		})
+	}
+}
+
+func TestNewEnvVarsEnricher(t *testing.T) {
+	env := []string{"FOO=foo", "OTEL_SERVICE_NAME=svc", "BAR=bar", "malformed"}
+
+	tests := map[string]struct {
+		reported     libpf.Set[string]
+		internal     libpf.Set[string]
+		wantReported map[libpf.String]libpf.String
+		wantInternal map[libpf.String]libpf.String
+	}{
+		"disjoint sets": {
+			reported: libpf.Set[string]{"FOO": {}},
+			internal: libpf.Set[string]{"OTEL_SERVICE_NAME": {}},
+			wantReported: map[libpf.String]libpf.String{
+				libpf.Intern("FOO"): libpf.Intern("foo"),
+			},
+			wantInternal: map[libpf.String]libpf.String{
+				libpf.Intern("OTEL_SERVICE_NAME"): libpf.Intern("svc"),
+			},
+		},
+		"name in both sets lands in both": {
+			reported: libpf.Set[string]{"OTEL_SERVICE_NAME": {}},
+			internal: libpf.Set[string]{"OTEL_SERVICE_NAME": {}},
+			wantReported: map[libpf.String]libpf.String{
+				libpf.Intern("OTEL_SERVICE_NAME"): libpf.Intern("svc"),
+			},
+			wantInternal: map[libpf.String]libpf.String{
+				libpf.Intern("OTEL_SERVICE_NAME"): libpf.Intern("svc"),
+			},
+		},
+		"requested name absent from environ": {
+			reported: libpf.Set[string]{"ABSENT": {}},
+			internal: libpf.Set[string]{},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(dir+"/environ",
+				[]byte(strings.Join(env, "\000")+"\000"), 0o600))
+
+			var meta Meta
+			NewEnvVarsEnricher(tt.reported, tt.internal).EnrichMeta(dir+"/", &meta)
+			assert.Equal(t, tt.wantReported, meta.EnvVariables)
+			assert.Equal(t, tt.wantInternal, meta.InternalEnvVariables)
 		})
 	}
 }
